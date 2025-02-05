@@ -1,0 +1,26 @@
+/home/ubuntu/eotk/projects.d/sites.d/log.d/*.log {
+  su ubuntu ubuntu
+  create 644 ubuntu ubuntu
+  hourly
+  dateext
+  # 1 week. 1 rotation per hour = 168 hours/rotations per week
+  rotate 168
+  missingok
+  ifempty
+  compress
+  lastaction
+    # run once after all files are rotated
+    ROTATED_DIR="$(dirname "$1")"
+    INCLUDE_PATTERN="nginx-access*.log-*.gz"
+    BUCKET_NAME="${bucket_name}"
+
+    TOKEN=`/usr/bin/curl --silent --request PUT "http://169.254.169.254/latest/api/token" --header "X-aws-ec2-metadata-token-ttl-seconds: 60"`
+    REGION=`/usr/bin/curl --silent --header "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/dynamic/instance-identity/document | grep region | cut -d\" -f4`
+    INSTANCE_ID=`/usr/bin/curl --silent --header "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/dynamic/instance-identity/document | grep instanceId | cut -d\" -f4`
+
+    /usr/bin/aws s3 sync "$ROTATED_DIR/" "s3://$BUCKET_NAME/$INSTANCE_ID/" --region $REGION --exclude "*" --include "$INCLUDE_PATTERN" --quiet
+
+    /home/ubuntu/eotk/eotk --local nxreload -a
+    /home/ubuntu/eotk/eotk --local torreload -a
+  endscript
+}

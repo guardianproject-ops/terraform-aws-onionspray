@@ -1,0 +1,54 @@
+#cloud-config
+
+bootcmd:
+  - DEBIAN_FRONTEND=noninteractive apt-get -yq update
+  - DEBIAN_FRONTEND=noninteractive apt-get -yq install gnupg
+
+apt:
+  conf: |
+    APT {
+      Get {
+        Assume-Yes "true";
+        Fix-Broken "true";
+      };
+    };
+
+packages:
+  - git
+  - logrotate
+  - unattended-upgrades
+  - unbound
+  - unzip
+package_upgrade: true
+
+snap:
+  commands:
+    - snap install aws-cli --classic
+
+runcmd:
+  - echo unattended-upgrades unattended-upgrades/enable_auto_updates boolean true | debconf-set-selections
+  - DEBIAN_FRONTEND=noninteractive dpkg-reconfigure unattended-upgrades
+  - sysctl -p /etc/sysctl.d/50-tcp_bbr.conf
+  - sudo -u ubuntu git clone https://gitlab.torproject.org/tpo/onion-services/onionspray.git /home/ubuntu/onionspray
+  - cd /home/ubuntu/onionspray ; sudo -u ubuntu ./opt/build-ubuntu-noble.sh
+  - /bin/bash /root/configure.sh
+
+write_files:
+  - content: ${configure_script}
+    path: /root/configure.sh
+    owner: root:root
+    permissions: '0644'
+  - content: ${logrotate_script}
+    path: /etc/logrotate.d/eotk
+    owner: root:root
+    permissions: '0644'
+  - content: ${crontab}
+    path: /etc/cron.d/eotk
+    owner: root:root
+    permissions: '0644'
+  - content: |
+      net.core.default_qdisc=fq
+      net.ipv4.tcp_congestion_control=bbr
+    path: /etc/sysctl.d/50-tcp_bbr.conf
+    owner: root:root
+    permissions: '0644'
